@@ -11,7 +11,12 @@ Order::Order(std::string clientOrderID, std::string instrument, int side, int qu
     this->quantity = quantity;
     this->price = price;
     this->sequence = nextSequence++;
+    this->orderId = instrument + "_" + std::to_string(sequence); // generate orderId based on instrument, sequence and clientOrderID
     std::cout << "Order created: " << clientOrderID << " " << instrument << " " << side << " " << quantity << " " << price << std::endl;
+}
+
+std::string Order::getOrderID() const{
+    return this->orderId;
 }
 std::string Order::getClientOrderID() const{
      return this->clientOrderID;
@@ -31,10 +36,15 @@ double Order::getPrice() const{
 int Order::getSequence() const{
     return this->sequence;
 }
-bool Order::operator<(const Order& other) const {
-    if (this->price != other.getPrice()) {
-        return this->price < other.getPrice();
-    }
-    return this->sequence > other.getSequence();
+
+void Order::setQuantity(int quantity){
+    this->quantity = quantity;
 }
-        //based on price, sell order walata honda
+
+// bool Order::operator<(const Order& other) const {
+//     if (this->price != other.getPrice()) {
+//         return this->price < other.getPrice();
+//     }
+//     return this->sequence > other.getSequence();
+// }
+//         //based on price, sell order walata honda

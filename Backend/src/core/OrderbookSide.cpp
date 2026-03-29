@@ -1,31 +1,40 @@
-/*#include <iostream>
+#include <iostream>
 #include "Order.h"
+#include "OrderbookSide.h"
 #include <queue>
-// using namespace std;
+using namespace std;
 
+OrderbookSide::OrderbookSide(){
+    this->orders = priority_queue<Order*>();
+};
 
-class OrderbookSide{
-    private:
-        int side;
-        std::priority_queue<Order> orders;
-    public:
-        OrderbookSide(int side){
-            this->side = side;
-        };
-        void addOrder(Order order){
-            orders.push(order);
-        }
-        Order getTopOrder(){
-            return orders.top();
-        }
-        void fillTopOrder(){
-            orders.pop();
-        }
-        void pfillTopOrder(int qty){
-            Order topOrder = orders.top();
-            if (qty < topOrder.getQuantity()){
-                topOrder.setQuantity(
-                    topOrder.getQuantity()-qty);
-            }
-        }
-};*/
+void OrderbookSide::addOrder(Order* order){
+    this->orders.push(order);
+};
+
+Order* OrderbookSide::getTopOrder(){
+    if (this->orders.empty()){
+        return nullptr;
+    }
+    return this->orders.top();
+}
+
+void OrderbookSide::fillTopOrder(){
+    if (!this->orders.empty()){
+        this->orders.pop();
+    }
+}
+
+void OrderbookSide::pfillTopOrder(int qty){
+    if (this->orders.empty() || qty <= 0){
+        return;
+    }
+
+    Order* topOrder = this->orders.top();
+    this->orders.pop();
+
+    if (qty < topOrder->getQuantity()){
+        topOrder->setQuantity(topOrder->getQuantity()-qty);
+        this->orders.push(topOrder);
+    }
+};
