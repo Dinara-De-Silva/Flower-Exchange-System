@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build Backend (g++)",
+			"type": "shell",
+			"command": "g++",
+			"args": [
+				"-std=c++17",
+				"-IBackend/include",
+				"-IBackend/include/core",
+				"Backend/src/main.cpp",
+				"Backend/src/core/Order.cpp",
+				"Backend/src/core/BuyOrder.cpp",
+				"Backend/src/core/SellOrder.cpp",
+				"-o",
+				"Backend/build_test.exe"
+			],
+			"isBackground": false,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}
