@@ -144,7 +144,7 @@ int Orderbook::executeOrder(Order* order){
     }
 }
 
-void Orderbook::createExecutionReport(Order* order, std::string status, std::string reasonIn, double executedPriceIn, int executedQuantityIn){
+void Orderbook::createExecutionReport(Order* order, std::string status, std::string reason, double executedPrice, int executedQuantity){
     // this will create an execution report based on the order and the execution result, and write it to a file or database
     // for now, just print the execution report to console
     std::string orderId = order->getOrderID();
@@ -166,15 +166,16 @@ void Orderbook::createExecutionReport(Order* order, std::string status, std::str
     std::ostringstream oss;
     oss << std::put_time(&bt, "%Y%m%d-%H%M%S"); // Formats YYYYMMDD-HHMMSS
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count(); // Appends .sss
+    transactionTime = oss.str();
 
     if(status == "rejected"){
-        ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, transactionTime, reason=reasonIn);
+        ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status,0.0, 0, transactionTime, reason);
+        report.writeReport();
     } else if (status == "new" || status == "partially filled" || status == "filled"){
-        ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, transactionTime, executedPrice=executedPriceIn, executedQuantity=executedQuantityIn, reason=reasonIn);
+        ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, executedPrice, executedQuantity, transactionTime, reason);
+        report.writeReport();
     } else {
         std::cout << "Undefined behavior: invalid status for execution report" << std::endl;
         return; // invalid status, do not create report
     }
-    
-    report.writeReport();
 }

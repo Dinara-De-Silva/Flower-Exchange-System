@@ -18,7 +18,7 @@ class ExecutionReport {
         std::string transactionTime;
 
         public:
-        ExecutionReport(std::string orderId, std::string clientOrderId, std::string instrument, int side, double price, int quantity, std::string status, std::string transactionTime, double executedPrice = 0.0, int executedQuantity = 0, std::string reason = "");
+        ExecutionReport(std::string orderId, std::string clientOrderId, std::string instrument, int side, double price, int quantity, std::string status, double executedPrice = 0.0, int executedQuantity = 0, std::string transactionTime, std::string reason = "");
         void writeReport() const;
 };
 
