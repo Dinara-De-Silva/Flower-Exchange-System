@@ -6,6 +6,7 @@
 #include "Orderbook.h"
 #include "ExecutionReport.h"
 #include "Order.h"
+#include "TimeService.h"
 
 Orderbook::Orderbook(){
     this->buySide = new OrderbookSide();
@@ -23,16 +24,24 @@ int Orderbook::verifyOrder(Order* order){
     std::string clientOrderID = order->getClientOrderID();
     int quantity = order->getQuantity();
     double price = order->getPrice();
+    std::string reason;
+    int errorCode = 0;
     if (clientOrderID.empty()){
-        return -1; // invalid order
+        reason = "empty field(s)";
+        errorCode = -1; // invalid order
     } else if (price <= 0 || quantity <= 0){
-        return -2; // invalid price or quantity
+        reason = "invalid price or quantity";
+        errorCode = -2; // invalid price or quantity
     } else if (quantity % 10 != 0){
-        return -3; // qty not multiple of 10
+        reason = "qty not multiple of 10";
+        errorCode = -3; // qty not multiple of 10
     } else if (quantity < 10 || quantity > 10000){
-        return -4; // qty out of range
+        reason = "qty out of range";
+    } else {
+        return 0; // valid order
     }
-    return 0; // valid order
+    createExecutionReport(order, "rejected", reason, 0.0, 0); // create execution report for rejected order
+    return errorCode;
 };
 
 void Orderbook::addOrder(Order* order){
@@ -65,12 +74,13 @@ int Orderbook::processOrder(Order* order, bool isNewOrder){
         }
     }
     int side = order->getSide();
+    std::string status = isNewOrder ? "new" : "pfill"; // if it's a new order, status is "new", if it's an existing order being processed again after a partial fill, status is "pfill"
     if (side == 1){ // buy order
         Order* topSellOrder = sellSide->getTopOrder();
         if (topSellOrder == nullptr || topSellOrder->getPrice() > order->getPrice()){
             addOrder(order);
+            createExecutionReport(order, status, "order added to buy side", 0.0, 0); // create execution report for new order added to book
             return 0; // added to book, no execution
-            // TODO: execution report (send pfill or fill)
         } else {
             return executeOrder(order);
         }
@@ -78,7 +88,7 @@ int Orderbook::processOrder(Order* order, bool isNewOrder){
         Order* topBuyOrder = buySide->getTopOrder();
         if(topBuyOrder == nullptr || topBuyOrder->getPrice() < order->getPrice()){
             addOrder(order);
-            // TODO: execution report (send pfill or fill)
+            createExecutionReport(order, status, "order added to sell side", 0.0, 0); // create execution report for new order added to book
             return 0; // added to book, no execution
         } else {
             return executeOrder(order);
@@ -100,18 +110,20 @@ int Orderbook::executeOrder(Order* order){
             int newBuyQty = order->getQuantity();
             if (newBuyQty == topSellQty){ //new buy fill, top sell fill
                 sellSide->fillTopOrder();
-                // TODO: add execution print statement
-                std::cout << "Executed: " << order->getClientOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
+                createExecutionReport(order, "fill", "fully filled against top sell order: " + topSellOrder->getOrderID(), topSellOrder->getPrice(), newBuyQty); // create execution report for fully filled new order
+                createExecutionReport(topSellOrder, "fill", "fully filled against new buy order: " + order->getOrderID(), topSellOrder->getPrice(), topSellQty); // create execution report for fully filled top sell order
+                std::cout << "Executed: " << order->getOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
                 return 1; // fully executed
             } else if (newBuyQty < topSellQty){ // new buy fill, top sell pfill
                 sellSide->pfillTopOrder(newBuyQty);
-                // TODO: add execution print statement
-                std::cout << "Executed: " << order->getClientOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
+                createExecutionReport(order, "fill", "fully filled against top sell order: " + topSellOrder->getOrderID(), topSellOrder->getPrice(), newBuyQty); // create execution report for fully filled new order
+                createExecutionReport(topSellOrder, "pfill", "partially filled against new buy order: " + order->getOrderID(), topSellOrder->getPrice(), newBuyQty); // create execution report for partially filled top sell order
+                std::cout << "Executed: " << order->getOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
                 return 1; // fully executed
             } else if (newBuyQty > topSellQty){ // new buy again process, top sell fill
                 sellSide->fillTopOrder();
                 order->setQuantity(newBuyQty - topSellQty);
-                std::cout << "Executed: " << order->getClientOrderID() << " bought " << topSellQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
+                std::cout << "Executed: " << order->getOrderID() << " bought " << topSellQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
                 return processOrder(order, false); // recursively process the remaining quantity of the new buy order
             }
         } else {
@@ -125,16 +137,22 @@ int Orderbook::executeOrder(Order* order){
             int newSellQty = order->getQuantity();
             if (newSellQty == topBuyQty){ //new sell fill, top buy fill
                 buySide->fillTopOrder();
-                std::cout << "Executed: " << order->getClientOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
+                createExecutionReport(order, "fill", "fully filled against top buy order: " + topBuyOrder->getOrderID(), topBuyOrder->getPrice(), newSellQty); // create execution report for fully filled new order
+                createExecutionReport(topBuyOrder, "fill", "fully filled against new sell order: " + order->getOrderID(), topBuyOrder->getPrice(), topBuyQty); // create execution report for fully filled top buy order
+                std::cout << "Executed: " << order->getOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
                 return 1; // fully executed
             } else if (newSellQty < topBuyQty){ // new sell fill, top buy pfill
                 buySide->pfillTopOrder(newSellQty);
-                std::cout << "Executed: " << order->getClientOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
+                createExecutionReport(order, "fill", "fully filled against top buy order: " + topBuyOrder->getOrderID(), topBuyOrder->getPrice(), newSellQty); // create execution report for fully filled new order
+                createExecutionReport(topBuyOrder, "pfill", "partially filled against new sell order: " + order->getOrderID(), topBuyOrder->getPrice(), newSellQty); // create execution report for partially filled top buy order
+                std::cout << "Executed: " << order->getOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
                 return 1; // fully executed
             } else if (newSellQty > topBuyQty){ // new sell again process - pfill, top buy fill
                 buySide->fillTopOrder();
                 order->setQuantity(newSellQty - topBuyQty);
-                std::cout << "Executed: " << order->getClientOrderID() << " sold " << topBuyQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
+                createExecutionReport(order, "pfill", "partially filled against top buy order: " + topBuyOrder->getOrderID(), topBuyOrder->getPrice(), topBuyQty); // create execution report for partially filled new order
+                createExecutionReport(topBuyOrder, "fill", "fully filled against new sell order: " + order->getOrderID(), topBuyOrder->getPrice(), topBuyQty); // create execution report for fully filled top buy order
+                std::cout << "Executed: " << order->getOrderID() << " sold " << topBuyQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
                 return processOrder(order, false); // recursively process the remaining quantity of the new sell order
             }
         } else {
@@ -153,29 +171,15 @@ void Orderbook::createExecutionReport(Order* order, std::string status, std::str
     int side = order->getSide();
     double price = order->getPrice();
     int quantity = order->getQuantity();
+    std::string transactionTime = TimeService::getCurrentTimestamp();
 
-    std::string transactionTime = ""; // You need to set the transaction time appropriately
+    double executedPriceForReport = (status == "rejected") ? 0.0 : executedPrice; // if rejected, executed price is 0
+    int executedQuantityForReport = (status == "rejected") ? 0 : executedQuantity; // if rejected, executed quantity is 0
 
-    auto now = std::chrono::system_clock::now();    // get the current time point
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000; //extract milliseconds part for .sss in the timestamp
-    auto timer = std::chrono::system_clock::to_time_t(now); // convert to time_t for formatting
-    std::tm bt;
-    localtime_s(&bt, &timer); // convert to local time and store in tm structure for formatting. Note: localtime_s is thread-safe, localtime is not thread-safe. If you are using a different platform, you might need to use localtime_r instead of localtime_s.
-
-    // 4. Build the string
-    std::ostringstream oss;
-    oss << std::put_time(&bt, "%Y%m%d-%H%M%S"); // Formats YYYYMMDD-HHMMSS
-    oss << '.' << std::setfill('0') << std::setw(3) << ms.count(); // Appends .sss
-    transactionTime = oss.str();
-
-    if(status == "rejected"){
-        ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status,0.0, 0, transactionTime, reason);
-        report.writeReport();
-    } else if (status == "new" || status == "partially filled" || status == "filled"){
-        ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, executedPrice, executedQuantity, transactionTime, reason);
-        report.writeReport();
-    } else {
+    if (status != "rejected" && status != "pfill" && status != "fill" && status != "new"){
         std::cout << "Undefined behavior: invalid status for execution report" << std::endl;
         return; // invalid status, do not create report
     }
+    ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, executedPriceForReport, executedQuantityForReport, transactionTime, reason);
+    report.writeReport();
 }
