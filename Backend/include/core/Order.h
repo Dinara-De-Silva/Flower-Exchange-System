@@ -29,7 +29,7 @@ class Order{
     // setters
         void setQuantity(int quantity);
     // priority queue comparison operator
-        virtual bool operator<(const Order& other) const;
+        // virtual bool operator<(const Order& other) const;
 
         virtual ~Order() = default;
 };

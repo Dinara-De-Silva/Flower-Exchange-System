@@ -1,6 +1,8 @@
 #ifndef THREAD_SAFE_QUEUE_H
 #define THREAD_SAFE_QUEUE_H
 #include <array>
+#include <atomic>
+#include <optional>
 #include <mutex>
 #include <condition_variable>
 #include "Order.h"
