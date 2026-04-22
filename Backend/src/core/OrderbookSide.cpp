@@ -2,11 +2,9 @@
 #include "Order.h"
 #include "OrderbookSide.h"
 #include <queue>
-using namespace std;
 
-OrderbookSide::OrderbookSide(){
-    this->orders = priority_queue<Order*>();
-};
+OrderbookSide::OrderbookSide(int side)
+    : orders(OrderPtrComparator(side)) {};
 
 void OrderbookSide::addOrder(Order* order){
     this->orders.push(order);
@@ -21,7 +19,9 @@ Order* OrderbookSide::getTopOrder(){
 
 void OrderbookSide::fillTopOrder(){
     if (!this->orders.empty()){
+        Order* top = this->orders.top();
         this->orders.pop();
+        delete top;
     }
 }
 

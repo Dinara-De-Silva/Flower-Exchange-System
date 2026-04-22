@@ -3,11 +3,9 @@
 
 #include "Order.h"
 
-class SellOrder : public Order {
-    public:
-        SellOrder (std :: string clientOrderID, std :: string instrument , int quantity, double price );
-        bool operator<(const Order& other) const override;
-        ~SellOrder() override = default;
-};
+// SellOrder is no longer needed as a separate class.
+// Side-aware ordering is handled by OrderbookSide's comparator.
+// Kept as a type alias for backward compatibility.
+using SellOrder = Order;
 
 #endif

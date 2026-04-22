@@ -13,6 +13,7 @@ class OrderbookQueue {
         std::array<T, N> buffer;
         alignas(64) std::atomic<size_t> writeIndex;
         alignas(64) std::atomic<size_t> readIndex;
+        std::atomic<bool> producerDone{false};
 
     public:
         OrderbookQueue() : writeIndex(0), readIndex(0) {}
@@ -41,6 +42,13 @@ class OrderbookQueue {
             T item = buffer[currentRead];
             readIndex.store((currentRead + 1) & (N - 1), std::memory_order_release);
             return item;
+        }
+
+        void setDone() { producerDone.store(true, std::memory_order_release); }
+
+        bool isDone() const {
+            return producerDone.load(std::memory_order_acquire) &&
+                   readIndex.load(std::memory_order_acquire) == writeIndex.load(std::memory_order_acquire);
         }
 };
 

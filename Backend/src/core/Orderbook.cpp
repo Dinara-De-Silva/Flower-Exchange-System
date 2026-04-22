@@ -1,16 +1,18 @@
+#include "Orderbook.h"
+#include "OrderbookSide.h"
+#include "ExecutionReport.h"
+#include "TimeService.h"
 #include <iostream>
 #include <iomanip>
-#include <chrono>
-#include <sstream>
-#include "OrderbookSide.h"
-#include "Orderbook.h"
-#include "ExecutionReport.h"
-#include "Order.h"
-#include "TimeService.h"
 
 Orderbook::Orderbook(){
-    this->buySide = new OrderbookSide();
-    this->sellSide = new OrderbookSide();
+    this->buySide = new OrderbookSide(1);  // buy side
+    this->sellSide = new OrderbookSide(2); // sell side
+};
+
+Orderbook::~Orderbook(){
+    delete buySide;
+    delete sellSide;
 };
 
 /*verification error codes:
@@ -37,6 +39,7 @@ int Orderbook::verifyOrder(Order* order){
         errorCode = -3; // qty not multiple of 10
     } else if (quantity < 10 || quantity > 10000){
         reason = "qty out of range";
+        errorCode = -4; // qty out of range
     } else {
         return 0; // valid order
     }
@@ -160,6 +163,7 @@ int Orderbook::executeOrder(Order* order){
             return -1;  // bug, should never come to this block
         }
     }
+    return -1; // unreachable, but satisfies compiler
 }
 
 void Orderbook::createExecutionReport(Order* order, std::string status, std::string reason, double executedPrice, int executedQuantity){
@@ -180,6 +184,6 @@ void Orderbook::createExecutionReport(Order* order, std::string status, std::str
         std::cout << "Undefined behavior: invalid status for execution report" << std::endl;
         return; // invalid status, do not create report
     }
-    ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, executedPriceForReport, executedQuantityForReport, transactionTime, reason);
-    report.writeReport();
+    ExecutionReport report(orderId, clientOrderId, instrument, side, price, quantity, status, transactionTime, executedPriceForReport, executedQuantityForReport, reason);
+    ThreadSafeExecutionReportQueue::push(report); // push the report to the thread-safe queue for writing to file
 }

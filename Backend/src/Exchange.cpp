@@ -1,16 +1,49 @@
 #include "Exchange.h"
+#include "CSVReader.h"
 #include <iostream>
 
-Exchange::Exchange() : isRunning(false) {};
+// Static member definitions
+std::unordered_map<std::string, std::unique_ptr<Orderbook>> Exchange::orderbooks;
+std::unordered_map<std::string, std::unique_ptr<OrderbookQueue<Order, 1024>>> Exchange::orderbookQueues;
+std::unordered_map<std::string, std::thread> Exchange::orderbookThreads;
+
+Exchange::Exchange() : isRunning(false), csvWriter("Backend/data/output/execution_report.csv") {};
 
 void Exchange::start() {
     isRunning = true;
     std::cout << "Exchange started." << std::endl;
     createOrderbookThreads();
+    executionReportThread = std::thread(&CSVWriter::writeReport, &csvWriter);
 
+    // Read orders from CSV
+    CSVReader reader("Backend/data/input/orders.csv");
+    reader.read();
+
+    // After all orders are read, stop gracefully
+    stop();
 };
 
 void Exchange::stop() {
+    // Signal all queues that no more orders are coming
+    for (auto& pair : orderbookQueues) {
+        pair.second->setDone();
+    }
+
+    // Wait for orderbook threads to drain their queues and exit
+    for (auto& pair : orderbookThreads) {
+        if (pair.second.joinable()) {
+            pair.second.join();
+            std::cout << "Thread for " << pair.first << " joined." << std::endl;
+        }
+    }
+
+    // Now signal the execution report writer to stop and join it
+    ThreadSafeExecutionReportQueue::set_done();
+    if (executionReportThread.joinable()) {
+        executionReportThread.join();
+        std::cout << "Execution report thread joined." << std::endl;
+    }
+
     isRunning = false;
     std::cout << "Exchange stopped." << std::endl;
 };
@@ -20,20 +53,18 @@ void Exchange::createOrderbookThreads() {
     for (const std::string& flower : Exchange::flowerList) {
         orderbooks[flower] = std::make_unique<Orderbook>();
         orderbookQueues[flower] = std::make_unique<OrderbookQueue<Order, 1024>>();
-        orderbookThreads[flower] = std::thread(&Exchange::processOrderbooks, this, std::ref(orderbooks[flower]), std::ref(*orderbookQueues[flower]));
+        orderbookThreads[flower] = std::thread(&Exchange::processOrderbooks, this, std::ref(*orderbooks[flower]), std::ref(*orderbookQueues[flower]));
         std::cout << "Thread created for " << flower << std::endl;
     }
 }
 
 void Exchange::processOrderbooks(Orderbook& orderbook, OrderbookQueue<Order, 1024>& orderbookQueue) {
-    while (isRunning) {
-        // TODO: pop orders from the orderbookQueue and process them using the orderbook's processOrder function
-        // then create execution reports based on the processing result and write them to a file or database
-        if(auto orderOpt = orderbookQueue.pop()){
-            
-            Order order = *orderOpt;
-            int result = orderbook.processOrder(&order);
+    while (true) {
+        if (auto orderOpt = orderbookQueue.pop()) {
+            Order* order = new Order(*orderOpt);
+            orderbook.processOrder(order);
+        } else if (orderbookQueue.isDone()) {
+            break; // No more orders coming and queue is empty
         }
     }
-        
 }

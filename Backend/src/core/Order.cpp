@@ -40,11 +40,3 @@ int Order::getSequence() const{
 void Order::setQuantity(int quantity){
     this->quantity = quantity;
 }
-
-// bool Order::operator<(const Order& other) const {
-//     if (this->price != other.getPrice()) {
-//         return this->price < other.getPrice();
-//     }
-//     return this->sequence > other.getSequence();
-// }
-//         //based on price, sell order walata honda

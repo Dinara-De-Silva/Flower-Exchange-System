@@ -16,39 +16,50 @@ int CSVReader::read() {
     std::string currentLine;
     std::getline(file, currentLine); // skip header line
     
-    // while (std::getline(file, currentLine)) {
+    while (std::getline(file, currentLine)) {
 
-    //     std::stringstream ss(currentLine);
-    //     std::string token;
-    //     Order tempOrder;
-        
-    //     std::getline(ss, tempOrder.clientId, ',');
-    //     std::getline(ss, tempOrder.instrument, ',');
-    //     std::getline(ss, tempOrder.side, ',');
+        std::vector<std::string> tokens;
+        std::string token;
 
-    //     // 6. Type Conversion (Crucial Step!)
-    //     // Everything chopped by getline is a std::string. 
-    //     // We must manually convert them to numbers.
-        
-    //     std::getline(ss, token, ',');
-    //     tempOrder.quantity = std::stoi(token); // std::stoi = String TO Integer
+        std::stringstream ss(currentLine);
+        while (std::getline(ss, token, ',')) {
+            tokens.push_back(token);
+        }
 
-    //     std::getline(ss, token, ',');
-    //     tempOrder.price = std::stod(token);    // std::stod = String TO Double
+        if (tokens.size() != 5) {
+            std::cerr << "Error: Invalid line format in CSV: " << currentLine << "\n";
+            continue; // skip this line and move to the next
+        }
 
-    //     // 7. Store the parsed order
-    //     parsedOrders.push_back(tempOrder);
-    // }
+        try {
+        // We know we have exactly 5 items, so we can access them by index (0 through 4)
+            std::string clientOrderID = tokens[0];
+            
+            // Convert numbers inside a try block
+            int side = std::stoi(tokens[2]);
+            int quantity = std::stoi(tokens[3]);
+            double price = std::stod(tokens[4]);
 
-    // // 8. Close the file to free up OS resources
-    // file.close();
+            // 5. Make the order
+            std::vector<std::string> validFlowers = Exchange::getFlowerList();
+            std::string flower = std::find(validFlowers.begin(), validFlowers.end(), tokens[1]) != validFlowers.end() ? tokens[1] : "";
+            if (!flower.empty() && (side == 1 || side == 2)) {
+                Order order(clientOrderID, flower, side, quantity, price);
+                Exchange::getOrderbookQueue(flower)->push(order);
+                std::cout << "Order " << order.getOrderID() << " pushed to queue: " << currentLine << "\n";
+            } else {
+                std::cerr << "Error: Invalid flower or side in line: " << currentLine << "\n";
+                return 3; // invalid flower or side
+            }
 
-    // // --- Verification Print ---
-    // for (const auto& order : parsedOrders) {
-    //     std::cout << "Read Order: " << order.clientId << " wants " 
-    //               << order.quantity << " " << order.instrument 
-    //               << " at $" << order.price << "\n";
-    // }
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Data conversion error on line: " << currentLine << "\n";
+            return 2; // data conversion error
+    }
+    }
+
+    // 8. Close the file to free up OS resources
+    file.close();
 
     return 0;
 }

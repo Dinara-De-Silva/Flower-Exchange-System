@@ -6,6 +6,8 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <stdexcept>
+#include "Order.h"
 #include "Exchange.h"
 
 class CSVReader {
