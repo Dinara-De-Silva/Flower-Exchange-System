@@ -8,15 +8,16 @@ class Order{
         std::string orderId;
         std::string clientOrderID;
         std::string instrument;
-        int side; // 0 for buy, 1 for sell
-        int quantity;
-        double price;
-        int sequence;
+        int side = 0; // 1 for buy, 2 for sell
+        int quantity = 0;
+        double price = 0.0;
+        int sequence = 0;
 
         static int nextSequence;
 
     public:
     // constructor
+        Order() = default;
         Order(std::string clientOrderID, std::string instrument, int side, int quantity, double price);
     // getters
         std::string getOrderID() const;
@@ -28,9 +29,7 @@ class Order{
         int getSequence() const;
     // setters
         void setQuantity(int quantity);
-    // priority queue comparison operator
-        virtual bool operator<(const Order& other) const;
 
-        virtual ~Order() = default;
+        ~Order() = default;
 };
 #endif

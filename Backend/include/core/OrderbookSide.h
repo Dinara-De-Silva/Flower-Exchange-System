@@ -1,17 +1,33 @@
 #ifndef ORDERBOOKSIDE_H
 #define ORDERBOOKSIDE_H
-#include "BuyOrder.h"
-#include "SellOrder.h"
 #include "Order.h"
 #include <queue>
-// using namespace std;
+#include <vector>
+#include <functional>
 
 class OrderbookSide{
 
     private:
-        std::priority_queue<Order*> orders;
+        struct OrderPtrComparator {
+            int side;
+            OrderPtrComparator(int s) : side(s) {}
+            bool operator()(const Order* a, const Order* b) const {
+                if (side == 1) {
+                    // Buy side: higher price = higher priority
+                    if (a->getPrice() != b->getPrice())
+                        return a->getPrice() < b->getPrice();
+                } else {
+                    // Sell side: lower price = higher priority
+                    if (a->getPrice() != b->getPrice())
+                        return a->getPrice() > b->getPrice();
+                }
+                // Tiebreak: older order (lower sequence) wins
+                return a->getSequence() > b->getSequence();
+            }
+        };
+        std::priority_queue<Order*, std::vector<Order*>, OrderPtrComparator> orders;
     public:
-        OrderbookSide(){};
+        OrderbookSide(int side);
         void addOrder(Order* order);
         Order* getTopOrder();
         void fillTopOrder();

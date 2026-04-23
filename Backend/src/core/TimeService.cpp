@@ -9,7 +9,11 @@ std::string TimeService::getCurrentTimestamp() {
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000; //extract milliseconds part for .sss in the timestamp
     auto timer = std::chrono::system_clock::to_time_t(now); // convert to time_t for formatting
     std::tm bt;
-    localtime_s(&bt, &timer); // convert to local time and store in tm structure for formatting. Note: localtime_s is thread-safe, localtime is not thread-safe. If you are using a different platform, you might need to use localtime_r instead of localtime.
+#ifdef _WIN32
+    localtime_s(&bt, &timer); // Windows (MSVC): thread-safe, arguments are reversed vs POSIX
+#else
+    localtime_r(&timer, &bt); // POSIX (macOS/Linux): thread-safe
+#endif
 
     // 4. Build the string
     std::ostringstream oss;

@@ -1,0 +1,6 @@
+OrderID,ClientOrderID,Instrument,Side,Price,Quantity,Status,ExecutedPrice,ExecutedQuantity,TransactionTime,Reason
+_0,aa13,,1,55,100,rejected,0,0,TIMESTAMP,Invalid instrument
+Rose_1,aa14,Rose,3,65,100,rejected,0,0,TIMESTAMP,Invalid side
+Lavendar_0,aa15,Lavendar,2,1,101,rejected,0,0,TIMESTAMP,qty not multiple of 10
+Tulip_1,aa16,Tulip,1,-1,100,rejected,0,0,TIMESTAMP,invalid price or quantity
+Orchid_2,aa17,Orchid,1,-1,1000,rejected,0,0,TIMESTAMP,invalid price or quantity
