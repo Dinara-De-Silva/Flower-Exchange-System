@@ -1,9 +1,9 @@
 OrderID,ClientOrderID,Instrument,Side,Price,Quantity,Status,ExecutedPrice,ExecutedQuantity,TransactionTime,Reason
 Rose_0,aa13,Rose,1,55,100,new,0,0,TIMESTAMP,order added to buy side
 Rose_1,aa14,Rose,1,65,100,new,0,0,TIMESTAMP,order added to buy side
-Rose_2,aa15,Rose,2,65,200,pfill,65,100,TIMESTAMP,partially filled against top buy order: Rose_1
+Rose_2,aa15,Rose,2,1,300,pfill,65,100,TIMESTAMP,partially filled against top buy order: Rose_1
 Rose_1,aa14,Rose,1,65,100,fill,65,100,TIMESTAMP,fully filled against new sell order: Rose_2
-Rose_2,aa15,Rose,2,55,100,pfill,55,100,TIMESTAMP,partially filled against top buy order: Rose_0
+Rose_2,aa15,Rose,2,1,200,pfill,55,100,TIMESTAMP,partially filled against top buy order: Rose_0
 Rose_0,aa13,Rose,1,55,100,fill,55,100,TIMESTAMP,fully filled against new sell order: Rose_2
-Rose_3,aa16,Rose,1,1,100,fill,1,100,TIMESTAMP,fully filled against top sell order: Rose_2
+Rose_3,aa16,Rose,1,2,100,fill,1,100,TIMESTAMP,fully filled against top sell order: Rose_2
 Rose_2,aa15,Rose,2,1,100,fill,1,100,TIMESTAMP,fully filled against new buy order: Rose_3
