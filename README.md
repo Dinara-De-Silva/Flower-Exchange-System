@@ -1,9 +1,5 @@
 # Flower Exchange System
 
-A multithreaded order-matching engine written in C++17. Orders are read from a CSV file, dispatched to per-instrument orderbooks running on dedicated threads, matched using price-time priority, and execution reports are written to an output CSV.
-
----
-
 ## Prerequisites
 
 | Requirement | Version |

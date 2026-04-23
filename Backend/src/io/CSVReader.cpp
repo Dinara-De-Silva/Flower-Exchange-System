@@ -1,21 +1,24 @@
-// TODO: Read CSV data and do initial verification of data format and valid flower and valid side
+// CSVReader: validates instrument (must be a known flower) and side (must be 1 or 2).
+// All other validation (qty, price) is delegated to Orderbook::verifyOrder on the instrument thread.
 #include "io/CSVReader.h"
+#include "ExecutionReport.h"
+#include "TimeService.h"
 
 CSVReader::CSVReader(const std::string& filepath) {
-    // TODO: initialize CSV reader with file path and open the file
     this->filepath = filepath;
 }
 
 int CSVReader::read() {
     std::ifstream file(filepath);
     if (!file.is_open()) {
-        std::cerr << "Fatal Error: Could not open orders.csv\n";
+        std::cerr << "Fatal Error: Could not open file: " << filepath << "\n";
         return 1;
     }
 
     std::string currentLine;
     std::getline(file, currentLine); // skip header line
-    
+    int rejectSeq = 0; // local sequence for rejection-only OrderIDs (instrument/side never reach a queue)
+
     while (std::getline(file, currentLine)) {
 
         std::vector<std::string> tokens;
@@ -28,38 +31,48 @@ int CSVReader::read() {
 
         if (tokens.size() != 5) {
             std::cerr << "Error: Invalid line format in CSV: " << currentLine << "\n";
-            continue; // skip this line and move to the next
+            continue;
         }
 
         try {
-        // We know we have exactly 5 items, so we can access them by index (0 through 4)
             std::string clientOrderID = tokens[0];
-            
-            // Convert numbers inside a try block
+            std::string instrumentRaw = tokens[1];
             int side = std::stoi(tokens[2]);
             int quantity = std::stoi(tokens[3]);
             double price = std::stod(tokens[4]);
 
-            // 5. Make the order
             std::vector<std::string> validFlowers = Exchange::getFlowerList();
-            std::string flower = std::find(validFlowers.begin(), validFlowers.end(), tokens[1]) != validFlowers.end() ? tokens[1] : "";
-            if (!flower.empty() && (side == 1 || side == 2)) {
-                Order order(clientOrderID, flower, side, quantity, price);
-                Exchange::getOrderbookQueue(flower)->push(order);
-                std::cout << "Order " << order.getOrderID() << " pushed to queue: " << currentLine << "\n";
-            } else {
-                std::cerr << "Error: Invalid flower or side in line: " << currentLine << "\n";
-                return 3; // invalid flower or side
+            bool validFlower = std::find(validFlowers.begin(), validFlowers.end(), instrumentRaw) != validFlowers.end();
+            bool validSide = (side == 1 || side == 2);
+
+            if (!validFlower) {
+                std::string orderId = instrumentRaw + "_" + std::to_string(rejectSeq++);
+                ExecutionReport report(orderId, clientOrderID, instrumentRaw, side, price, quantity, "rejected", TimeService::getCurrentTimestamp(), 0.0, 0, "Invalid instrument");
+                ThreadSafeExecutionReportQueue::push(report);
+                std::cerr << "Rejected: Invalid instrument in line: " << currentLine << "\n";
+                continue;
             }
+
+            if (!validSide) {
+                std::string orderId = instrumentRaw + "_" + std::to_string(rejectSeq++);
+                ExecutionReport report(orderId, clientOrderID, instrumentRaw, side, price, quantity, "rejected", TimeService::getCurrentTimestamp(), 0.0, 0, "Invalid side");
+                ThreadSafeExecutionReportQueue::push(report);
+                std::cerr << "Rejected: Invalid side in line: " << currentLine << "\n";
+                continue;
+            }
+
+            // Valid instrument and side — push to the instrument's orderbook queue.
+            // Qty/price validation is handled by Orderbook::verifyOrder on the instrument thread.
+            Order order(clientOrderID, instrumentRaw, side, quantity, price);
+            Exchange::getOrderbookQueue(instrumentRaw)->push(order);
+            std::cout << "Order " << order.getOrderID() << " pushed to queue: " << currentLine << "\n";
 
         } catch (const std::exception& e) {
             std::cerr << "Warning: Data conversion error on line: " << currentLine << "\n";
-            return 2; // data conversion error
-    }
+            continue;
+        }
     }
 
-    // 8. Close the file to free up OS resources
     file.close();
-
     return 0;
 }

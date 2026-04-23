@@ -19,6 +19,7 @@ class Exchange {
         static std::unordered_map<std::string, std::thread> orderbookThreads;
         std::thread executionReportThread;
         CSVWriter csvWriter;
+        std::string inputPath;
 
         void processOrderbooks(Orderbook& orderbook, OrderbookQueue<Order, 1024>& orderbookQueue);
         void createOrderbookThreads();
@@ -26,7 +27,8 @@ class Exchange {
     public:
         static std::vector<std::string> getFlowerList() { return flowerList; }
         static std::unique_ptr<OrderbookQueue<Order, 1024>>& getOrderbookQueue(const std::string& flower) { return orderbookQueues[flower]; }
-        Exchange();
+        Exchange(const std::string& inputPath = "Backend/data/input/orders.csv",
+                const std::string& outputPath = "Backend/data/output/execution_report.csv");
         void start();
         void stop();
 };

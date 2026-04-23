@@ -7,7 +7,8 @@ std::unordered_map<std::string, std::unique_ptr<Orderbook>> Exchange::orderbooks
 std::unordered_map<std::string, std::unique_ptr<OrderbookQueue<Order, 1024>>> Exchange::orderbookQueues;
 std::unordered_map<std::string, std::thread> Exchange::orderbookThreads;
 
-Exchange::Exchange() : isRunning(false), csvWriter("Backend/data/output/execution_report.csv") {};
+Exchange::Exchange(const std::string& inputPath, const std::string& outputPath)
+    : isRunning(false), csvWriter(outputPath), inputPath(inputPath) {};
 
 void Exchange::start() {
     isRunning = true;
@@ -16,7 +17,7 @@ void Exchange::start() {
     executionReportThread = std::thread(&CSVWriter::writeReport, &csvWriter);
 
     // Read orders from CSV
-    CSVReader reader("Backend/data/input/orders.csv");
+    CSVReader reader(inputPath);
     reader.read();
 
     // After all orders are read, stop gracefully
@@ -62,7 +63,12 @@ void Exchange::processOrderbooks(Orderbook& orderbook, OrderbookQueue<Order, 102
     while (true) {
         if (auto orderOpt = orderbookQueue.pop()) {
             Order* order = new Order(*orderOpt);
-            orderbook.processOrder(order);
+            int result = orderbook.processOrder(order);
+            // If rejected (negative result), the order was not added to the book or deleted
+            // inside executeOrder, so we must free it here.
+            if (result < 0) {
+                delete order;
+            }
         } else if (orderbookQueue.isDone()) {
             break; // No more orders coming and queue is empty
         }

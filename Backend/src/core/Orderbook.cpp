@@ -82,7 +82,9 @@ int Orderbook::processOrder(Order* order, bool isNewOrder){
         Order* topSellOrder = sellSide->getTopOrder();
         if (topSellOrder == nullptr || topSellOrder->getPrice() > order->getPrice()){
             addOrder(order);
-            createExecutionReport(order, status, "order added to buy side", 0.0, 0); // create execution report for new order added to book
+            if (isNewOrder) {
+                createExecutionReport(order, "new", "order added to buy side", 0.0, 0);
+            }
             return 0; // added to book, no execution
         } else {
             return executeOrder(order);
@@ -91,7 +93,9 @@ int Orderbook::processOrder(Order* order, bool isNewOrder){
         Order* topBuyOrder = buySide->getTopOrder();
         if(topBuyOrder == nullptr || topBuyOrder->getPrice() < order->getPrice()){
             addOrder(order);
-            createExecutionReport(order, status, "order added to sell side", 0.0, 0); // create execution report for new order added to book
+            if (isNewOrder) {
+                createExecutionReport(order, "new", "order added to sell side", 0.0, 0);
+            }
             return 0; // added to book, no execution
         } else {
             return executeOrder(order);
@@ -108,62 +112,76 @@ int Orderbook::executeOrder(Order* order){
     int side = order->getSide();
     if(side == 1){  // new buy order
         Order* topSellOrder = sellSide->getTopOrder();
-        if (topSellOrder->getPrice() < order->getPrice()){
+        if (topSellOrder->getPrice() <= order->getPrice()){
             int topSellQty = topSellOrder->getQuantity();
             int newBuyQty = order->getQuantity();
+            // Capture top order data before any fill/delete
+            std::string topSellId = topSellOrder->getOrderID();
+            double topSellPrice = topSellOrder->getPrice();
+
             if (newBuyQty == topSellQty){ //new buy fill, top sell fill
+                createExecutionReport(order, "fill", "fully filled against top sell order: " + topSellId, topSellPrice, newBuyQty);
+                createExecutionReport(topSellOrder, "fill", "fully filled against new buy order: " + order->getOrderID(), topSellPrice, topSellQty);
                 sellSide->fillTopOrder();
-                createExecutionReport(order, "fill", "fully filled against top sell order: " + topSellOrder->getOrderID(), topSellOrder->getPrice(), newBuyQty); // create execution report for fully filled new order
-                createExecutionReport(topSellOrder, "fill", "fully filled against new buy order: " + order->getOrderID(), topSellOrder->getPrice(), topSellQty); // create execution report for fully filled top sell order
-                std::cout << "Executed: " << order->getOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
-                return 1; // fully executed
+                std::cout << "Executed: " << order->getOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellPrice << std::endl;
+                delete order;
+                return 1;
             } else if (newBuyQty < topSellQty){ // new buy fill, top sell pfill
+                createExecutionReport(order, "fill", "fully filled against top sell order: " + topSellId, topSellPrice, newBuyQty);
+                createExecutionReport(topSellOrder, "pfill", "partially filled against new buy order: " + order->getOrderID(), topSellPrice, newBuyQty);
                 sellSide->pfillTopOrder(newBuyQty);
-                createExecutionReport(order, "fill", "fully filled against top sell order: " + topSellOrder->getOrderID(), topSellOrder->getPrice(), newBuyQty); // create execution report for fully filled new order
-                createExecutionReport(topSellOrder, "pfill", "partially filled against new buy order: " + order->getOrderID(), topSellOrder->getPrice(), newBuyQty); // create execution report for partially filled top sell order
-                std::cout << "Executed: " << order->getOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
-                return 1; // fully executed
-            } else if (newBuyQty > topSellQty){ // new buy again process, top sell fill
+                std::cout << "Executed: " << order->getOrderID() << " bought " << newBuyQty << " of " << order->getInstrument() << " at price " << topSellPrice << std::endl;
+                delete order;
+                return 1;
+            } else if (newBuyQty > topSellQty){ // new buy pfill, top sell fill
+                createExecutionReport(order, "pfill", "partially filled against top sell order: " + topSellId, topSellPrice, topSellQty);
+                createExecutionReport(topSellOrder, "fill", "fully filled against new buy order: " + order->getOrderID(), topSellPrice, topSellQty);
                 sellSide->fillTopOrder();
                 order->setQuantity(newBuyQty - topSellQty);
-                std::cout << "Executed: " << order->getOrderID() << " bought " << topSellQty << " of " << order->getInstrument() << " at price " << topSellOrder->getPrice() << std::endl;
-                return processOrder(order, false); // recursively process the remaining quantity of the new buy order
+                std::cout << "Executed: " << order->getOrderID() << " bought " << topSellQty << " of " << order->getInstrument() << " at price " << topSellPrice << std::endl;
+                return processOrder(order, false);
             }
         } else {
             std::cout << "Undefined behavior: no way new buy come to this block" << std::endl;
-            return -1;  // bug, should never come to this block
+            return -1;
         }
     } else { // new sell order
         Order* topBuyOrder = buySide->getTopOrder();
-        if (topBuyOrder->getPrice() > order->getPrice()){
+        if (topBuyOrder->getPrice() >= order->getPrice()){
             int topBuyQty = topBuyOrder->getQuantity();
             int newSellQty = order->getQuantity();
+            // Capture top order data before any fill/delete
+            std::string topBuyId = topBuyOrder->getOrderID();
+            double topBuyPrice = topBuyOrder->getPrice();
+
             if (newSellQty == topBuyQty){ //new sell fill, top buy fill
+                createExecutionReport(order, "fill", "fully filled against top buy order: " + topBuyId, topBuyPrice, newSellQty);
+                createExecutionReport(topBuyOrder, "fill", "fully filled against new sell order: " + order->getOrderID(), topBuyPrice, topBuyQty);
                 buySide->fillTopOrder();
-                createExecutionReport(order, "fill", "fully filled against top buy order: " + topBuyOrder->getOrderID(), topBuyOrder->getPrice(), newSellQty); // create execution report for fully filled new order
-                createExecutionReport(topBuyOrder, "fill", "fully filled against new sell order: " + order->getOrderID(), topBuyOrder->getPrice(), topBuyQty); // create execution report for fully filled top buy order
-                std::cout << "Executed: " << order->getOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
-                return 1; // fully executed
+                std::cout << "Executed: " << order->getOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyPrice << std::endl;
+                delete order;
+                return 1;
             } else if (newSellQty < topBuyQty){ // new sell fill, top buy pfill
+                createExecutionReport(order, "fill", "fully filled against top buy order: " + topBuyId, topBuyPrice, newSellQty);
+                createExecutionReport(topBuyOrder, "pfill", "partially filled against new sell order: " + order->getOrderID(), topBuyPrice, newSellQty);
                 buySide->pfillTopOrder(newSellQty);
-                createExecutionReport(order, "fill", "fully filled against top buy order: " + topBuyOrder->getOrderID(), topBuyOrder->getPrice(), newSellQty); // create execution report for fully filled new order
-                createExecutionReport(topBuyOrder, "pfill", "partially filled against new sell order: " + order->getOrderID(), topBuyOrder->getPrice(), newSellQty); // create execution report for partially filled top buy order
-                std::cout << "Executed: " << order->getOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
-                return 1; // fully executed
-            } else if (newSellQty > topBuyQty){ // new sell again process - pfill, top buy fill
+                std::cout << "Executed: " << order->getOrderID() << " sold " << newSellQty << " of " << order->getInstrument() << " at price " << topBuyPrice << std::endl;
+                delete order;
+                return 1;
+            } else if (newSellQty > topBuyQty){ // new sell pfill, top buy fill
+                createExecutionReport(order, "pfill", "partially filled against top buy order: " + topBuyId, topBuyPrice, topBuyQty);
+                createExecutionReport(topBuyOrder, "fill", "fully filled against new sell order: " + order->getOrderID(), topBuyPrice, topBuyQty);
                 buySide->fillTopOrder();
                 order->setQuantity(newSellQty - topBuyQty);
-                createExecutionReport(order, "pfill", "partially filled against top buy order: " + topBuyOrder->getOrderID(), topBuyOrder->getPrice(), topBuyQty); // create execution report for partially filled new order
-                createExecutionReport(topBuyOrder, "fill", "fully filled against new sell order: " + order->getOrderID(), topBuyOrder->getPrice(), topBuyQty); // create execution report for fully filled top buy order
-                std::cout << "Executed: " << order->getOrderID() << " sold " << topBuyQty << " of " << order->getInstrument() << " at price " << topBuyOrder->getPrice() << std::endl;
-                return processOrder(order, false); // recursively process the remaining quantity of the new sell order
+                std::cout << "Executed: " << order->getOrderID() << " sold " << topBuyQty << " of " << order->getInstrument() << " at price " << topBuyPrice << std::endl;
+                return processOrder(order, false);
             }
         } else {
             std::cout << "Undefined behavior: no way new sell come to this block" << std::endl;
-            return -1;  // bug, should never come to this block
+            return -1;
         }
     }
-    return -1; // unreachable, but satisfies compiler
+    return -1;
 }
 
 void Orderbook::createExecutionReport(Order* order, std::string status, std::string reason, double executedPrice, int executedQuantity){
